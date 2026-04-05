@@ -304,7 +304,8 @@ def apply_direct_replacements(repo_dir: Path, patch_dir: Path) -> None:
     """
     # List of file replacements: {target_path: source_filename}
     replacements = {
-        "vendor/nim-datastore/datastore.nim": "datastore.nim.clientlite"
+        "vendor/nim-datastore/datastore.nim": "datastore.nim.clientlite",
+        "Makefile.android": "Makefile.android"
     }
     
     for target_path, source_filename in replacements.items():
@@ -322,5 +323,49 @@ def apply_direct_replacements(repo_dir: Path, patch_dir: Path) -> None:
                 print(f"  ✓ Applied direct replacement: {target_path}")
             except Exception as e:
                 print(f"  Warning: Failed to apply direct replacement {target_path}: {e}")
-        else:
-            print(f"  Warning: Source file not found for direct replacement: {source_file}")
+    
+    # Apply LevelDB client-lite modifications
+    apply_leveldb_clientlite_fixes(repo_dir)
+
+
+def apply_leveldb_clientlite_fixes(repo_dir: Path) -> None:
+    """Apply LevelDB skip modifications for CLIENT_LITE builds."""
+    leveldb_raw_file = repo_dir / "vendor/nim-leveldbstatic/leveldbstatic/raw.nim"
+    
+    try:
+        if not leveldb_raw_file.exists():
+            print("  Warning: LevelDB raw.nim file not found")
+            return
+        
+        # Read the current file
+        with open(leveldb_raw_file, 'r') as f:
+            content = f.read()
+        
+        # Check if already modified
+        if "CLIENT_LITE: Skipping LevelDB build entirely" in content:
+            print("  LevelDB already patched for CLIENT_LITE")
+            return
+        
+        # Apply the modifications
+        original_proc = 'proc buildLevelDb() =\n  if fileExists(buildDir/"Makefile"):'
+        new_proc = '''proc buildLevelDb() =
+  when defined(CLIENT_LITE):
+    echo "CLIENT_LITE: Skipping LevelDB build entirely"
+    return
+
+  if fileExists(buildDir/"Makefile"):'''
+        
+        original_static = "static:\n  buildLevelDb()"
+        new_static = "static:\n  when not defined(CLIENT_LITE):\n    buildLevelDb()"
+        
+        content = content.replace(original_proc, new_proc)
+        content = content.replace(original_static, new_static)
+        
+        # Write back
+        with open(leveldb_raw_file, 'w') as f:
+            f.write(content)
+        
+        print("  ✓ Applied LevelDB CLIENT_LITE modifications")
+        
+    except Exception as e:
+        print(f"  Warning: Failed to apply LevelDB fixes: {e}")

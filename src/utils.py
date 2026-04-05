@@ -157,6 +157,7 @@ def configure_android_environment() -> dict:
     
     return {
         "STATIC": "1",
+        "CLIENT_LITE": "1",
         "HOST_TRIPLE": host_triple,
         "CC": str(cc_path),
         "CXX": str(cxx_path),

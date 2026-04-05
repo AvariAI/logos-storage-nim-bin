@@ -1,0 +1,10 @@
+--- library/libstorage.nim.orig
++++ library/libstorage.nim
+@@ -4,7 +4,6 @@
+ import
+   ../storage/storage,
+   ../storage/rest/[api, coders],
+-  ../storage/rest/api,
+   ../storage/stores/maintenance,
+   ../storage/stores/repostore,
+   libp2p/switch,

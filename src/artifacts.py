@@ -159,17 +159,49 @@ def build_libstorage_android(logos_storage_dir: Path, jobs: int, patch_dir: Path
     
     # Build with parallel jobs and Android environment
     print(f"Building Android libstorage with {jobs} parallel jobs...")
+    # Use system Nim (not bundled) for Android compatibility
+    # CLIENT_LITE is already in android_env but also need it as LIBSTORAGE_PARAMS
+    print("Setting LIBSTORAGE_PARAMS to include CLIENT_LITE flag...")
+    android_env["LIBSTORAGE_PARAMS"] = "-d:CLIENT_LITE"
+    
+    # Also pass as NIM_PARAMS to ensure it reaches Nim
+    if "NIM_PARAMS" in android_env:
+        android_env["NIM_PARAMS"] += " -d:CLIENT_LITE"
+    else:
+        android_env["NIM_PARAMS"] = "-d:CLIENT_LITE"
+        
+    build_cmd = ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage", "USE_SYSTEM_NIM=1", "CLIENT_LITE=1"]
+    print(f"Build command: {' '.join(build_cmd)}")
+    print(f"LIBSTORAGE_PARAMS: {android_env.get('LIBSTORAGE_PARAMS', 'not set')}")
+    print(f"NIM_PARAMS: {android_env.get('NIM_PARAMS', 'not set')}")
+    
     try:
-        # Use system Nim (not bundled) for Android compatibility
-        build_cmd = ["make", "-j", str(jobs), "-C", str(logos_storage_dir), "libstorage", "USE_SYSTEM_NIM=1"]
+        # First, try the standard make approach
         run_command(build_cmd, env=android_env)
+    except subprocess.CalledProcessError as make_error:
+        print(f"Standard make failed, trying Android-specific Makefile...")
+        
+        # Use our custom Android CLIENT_LITE Makefile (SQLite-only, no REST)
+        android_makefile = logos_storage_dir.parent / "patches/client-lite/Makefile.android.clientlite"
+        if not android_makefile.exists():
+            raise FileNotFoundError(f"Android CLIENT_LITE Makefile not found: {android_makefile}")
+        
+        print("Building with Android CLIENT_LITE Makefile (SQLite-only, no REST API)...")
+        
+        # Build using our custom Android CLIENT_LITE Makefile
+        run_command([
+            "make", "-f", str(android_makefile), 
+            "libstorage-androidlite"
+        ], cwd=logos_storage_dir.parent, env=android_env)
+        
     except subprocess.CalledProcessError as e:
         print(f"Error: Failed to build Android libstorage")
-        print(f"Command: {' '.join(e.cmd)}")
+        if hasattr(e, 'cmd'):
+            print(f"Command: {' '.join(e.cmd)}")
         print(f"Exit code: {e.returncode}")
-        if e.stdout:
+        if hasattr(e, 'stdout') and e.stdout:
             print(f"STDOUT:\n{e.stdout}")
-        if e.stderr:
+        if hasattr(e, 'stderr') and e.stderr:
             print(f"STDERR:\n{e.stderr}")
         raise
     
