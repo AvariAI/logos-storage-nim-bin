@@ -230,6 +230,9 @@ def apply_patches(repo_dir: Path, patch_dir: Path) -> None:
             print(f"  ✓ Applied {patch_file.name}")
     
     print("Patch application complete")
+    
+    # Apply direct file replacements for critical files that patches can't handle
+    apply_direct_replacements(repo_dir, client_lite_patches)
 
 
 def get_commit_info(repo_dir: Path) -> CommitInfo:
@@ -287,3 +290,37 @@ def ensure_logos_storage_repo(branch: str, commit: Optional[str] = None) -> Tupl
         commit_info.branch = branch
     
     return logos_storage_dir, commit_info
+
+
+def apply_direct_replacements(repo_dir: Path, patch_dir: Path) -> None:
+    """Apply direct file replacements for critical patches.
+    
+    Some patches (especially for submodule files) can't be applied cleanly.
+    This function handles direct file copying for those cases.
+    
+    Args:
+        repo_dir: Path to the logos-storage-nim repository
+        patch_dir: Path to client-lite patch directory
+    """
+    # List of file replacements: {target_path: source_filename}
+    replacements = {
+        "vendor/nim-datastore/datastore.nim": "datastore.nim.clientlite"
+    }
+    
+    for target_path, source_filename in replacements.items():
+        source_file = patch_dir / source_filename
+        target_file = repo_dir / target_path
+        
+        if source_file.exists():
+            print(f"  Applying direct replacement: {target_path}")
+            try:
+                # Create parent directory if it doesn't exist
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Copy the file
+                run_command(["cp", str(source_file), str(target_file)])
+                print(f"  ✓ Applied direct replacement: {target_path}")
+            except Exception as e:
+                print(f"  Warning: Failed to apply direct replacement {target_path}: {e}")
+        else:
+            print(f"  Warning: Source file not found for direct replacement: {source_file}")
