@@ -1,0 +1,21 @@
+diff --git a/vendor/nim-datastore/datastore.nimble b/vendor/nim-datastore/datastore.nimble
+index 1234567..abcdef8 100644
+--- a/vendor/nim-datastore/datastore.nimble
++++ b/vendor/nim-datastore/datastore.nimble
+@@ -7,7 +7,11 @@ description = "Simple, unified API for multiple data stores"
+ license = "Apache-2.0 or MIT"
+ 
+ # Dependencies
+-requires "nim >= 2.0.0",
+-         "sqlite3_abi >= 0.0.6 & < 0.1.0", 
+-         "leveldbstatic >= 0.2.1 & < 0.3.0",
+-         "questionable >= 0.1.0 & < 0.2.0"
++when defined(CLIENT_LITE):
++  requires "nim >= 2.0.0",
++           "sqlite3_abi >= 0.0.6 & < 0.1.0",
++           "questionable >= 0.1.0 & < 0.2.0"
++else:
++  requires "nim >= 2.0.0",
++           "sqlite3_abi >= 0.0.6 & < 0.1.0", 
++           "leveldbstatic >= 0.2.1 & < 0.3.0",
++           "questionable >= 0.1.0 & < 0.2.0"
