@@ -167,6 +167,71 @@ def update_repository(repo_dir: Path, branch: str, commit: Optional[str] = None)
         run_command(["git", "-C", str(repo_dir), "pull", "origin", branch])
 
 
+def reset_repository(repo_dir: Path) -> None:
+    """Reset repository to clean state.
+    
+    Args:
+        repo_dir: Path to the repository to reset
+    """
+    print("Resetting repository to clean state...")
+    
+    # Reset all changes
+    run_command(["git", "-C", str(repo_dir), "reset", "--hard", "HEAD"])
+    
+    # Clean untracked files and directories
+    run_command(["git", "-C", str(repo_dir), "clean", "-fd"])
+    
+    # Clean submodules
+    run_command(["git", "-C", str(repo_dir), "submodule", "foreach", "--recursive", "git reset --hard HEAD"])
+    run_command(["git", "-C", str(repo_dir), "submodule", "foreach", "--recursive", "git clean -fd"])
+    
+    print("Repository reset complete")
+
+
+def apply_patches(repo_dir: Path, patch_dir: Path) -> None:
+    """Apply client-lite patches to upstream repository.
+    
+    Args:
+        repo_dir: Path to the logos-storage-nim repository
+        patch_dir: Path to patches directory (should contain client-lite/ subdirectory)
+    """
+    if not patch_dir.exists():
+        print(f"Warning: Patch directory {patch_dir} does not exist, skipping patches")
+        return
+    
+    client_lite_patches = patch_dir / "client-lite"
+    if not client_lite_patches.exists():
+        print(f"Warning: Client-lite patch directory {client_lite_patches} does not exist, skipping patches")
+        return
+    
+    print(f"Applying client-lite patches from {client_lite_patches}...")
+    
+    # Apply patches in alphabetical order
+    patch_files = sorted(client_lite_patches.glob("*.patch"))
+    
+    if not patch_files:
+        print("No patch files found in client-lite patch directory")
+        return
+    
+    for patch_file in patch_files:
+        print(f"  Applying {patch_file.name}...")
+        # Use absolute path and correct working directory
+        result = run_command([
+            "patch", "-p1", "-i", str(patch_file.absolute())	
+        ], cwd=repo_dir, check=False)
+        
+        if result.returncode != 0:
+            print(f"  Warning: Failed to apply {patch_file.name}")
+            if result.stdout:
+                print(f"    stdout: {result.stdout}")
+            if result.stderr:
+                print(f"    stderr: {result.stderr}")
+        else:
+            print(f"  ✓ Applied {patch_file.name}")
+    
+    print("Patch application complete")
+
+
 def get_commit_info(repo_dir: Path) -> CommitInfo:
     """Get commit information from the repository."""
     commit = run_command(["git", "-C", str(repo_dir), "rev-parse", "HEAD"]).stdout.strip()

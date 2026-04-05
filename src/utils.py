@@ -102,6 +102,69 @@ def get_parallel_jobs() -> int:
     return 1
 
 
+def get_android_ndk_root() -> str:
+    """Get Android NDK root directory from environment."""
+    ndk_root = os.environ.get("ANDROID_NDK_ROOT") or os.environ.get("NDK_ROOT")
+    if not ndk_root:
+        raise ValueError(
+            "ANDROID_NDK_ROOT or NDK_ROOT environment variable must be set. "
+            "Example: export ANDROID_NDK_ROOT=/home/lowkey/Android/Sdk/ndk/29.0.14206865"
+        )
+    
+    if not Path(ndk_root).exists():
+        raise ValueError(f"Android NDK not found at {ndk_root}")
+    
+    return ndk_root
+
+
+def get_android_host_triple() -> str:
+    """Get Android host triple for cross-compilation."""
+    return "aarch64-unknown-linux-android"
+
+
+def configure_android_environment() -> dict:
+    """Configure Android NDK build environment."""
+    ndk_root = get_android_ndk_root()
+    host_triple = get_android_host_triple()
+    
+    # NDK toolchain paths
+    ndk_target = Path(ndk_root) / "toolchains/llvm/prebuilt/linux-x86_64"
+    
+    if not ndk_target.exists():
+        raise ValueError(f"NDK toolchain not found at {ndk_target}")
+    
+    # Android compilers
+    cc_path = ndk_target / "bin/aarch64-linux-android21-clang"
+    cxx_path = ndk_target / "bin/aarch64-linux-android21-clang++"
+    ar_path = ndk_target / "bin/llvm-ar"
+    
+    for tool_path in [cc_path, cxx_path, ar_path]:
+        if not tool_path.exists():
+            raise ValueError(f"Android tool not found: {tool_path}")
+    
+    # Secondary: traditional NDK path
+    ndk_alt = Path(ndk_root) / "toolchains/llvm/prebuilt/linux-x86_64"
+    if ndk_alt.exists():
+        cc_path = ndk_alt / "bin/aarch64-linux-android21-clang"
+        cxx_path = ndk_alt / "bin/aarch64-linux-android21-clang++"
+        ar_path = ndk_alt / "bin/llvm-ar"
+    
+    # Add nim to PATH
+    nim_paths = ["/home/lowkey/.nimble/bin", "/home/lowkey/.choosenim/toolchains/nim-2.2.8/bin"]
+    path_separator = ":"
+    current_path = os.environ.get("PATH", "")
+    new_path = path_separator.join(nim_paths + [current_path])
+    
+    return {
+        "STATIC": "1",
+        "HOST_TRIPLE": host_triple,
+        "CC": str(cc_path),
+        "CXX": str(cxx_path),
+        "AR": str(ar_path),
+        "PATH": new_path,
+    }
+
+
 def configure_reproducible_environment() -> None:
     """Set environment variables for reproducible builds."""
     try:
@@ -113,3 +176,13 @@ def configure_reproducible_environment() -> None:
     os.environ["SOURCE_DATE_EPOCH"] = source_date_epoch
     os.environ["TZ"] = "UTC"
     os.environ["LC_ALL"] = "C.UTF-8"
+
+
+def get_target_platform() -> str:
+    """Get target platform from environment or default to host."""
+    return os.environ.get("TARGET_PLATFORM", "").lower()
+
+
+def is_android_build() -> bool:
+    """Check if this is an Android build."""
+    return get_target_platform() == "android"

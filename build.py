@@ -12,16 +12,25 @@ import os
 import sys
 from pathlib import Path
 
-from src.utils import get_platform_identifier, get_host_triple, get_parallel_jobs, configure_reproducible_environment
+from src.utils import (
+    get_platform_identifier, 
+    get_host_triple, 
+    get_parallel_jobs, 
+    configure_reproducible_environment,
+    is_android_build,
+    get_target_platform
+)
 from src.repository import ensure_logos_storage_repo
 from src.artifacts import (
     clean_build_artifacts,
     build_libstorage,
+    build_libstorage_android,
     collect_artifacts,
     copy_libraries,
     copy_header_file,
     generate_sha256sums
 )
+from src.repository import reset_repository
 
 
 def main() -> None:
@@ -68,6 +77,9 @@ def main() -> None:
         logos_storage_dir, commit_info = ensure_logos_storage_repo(tag, None)
     else:
         logos_storage_dir, commit_info = ensure_logos_storage_repo(branch, commit)
+    
+    # Always reset repository to clean state before building
+    reset_repository(logos_storage_dir)
 
     print(f"Commit: {commit_info.commit} ({commit_info.commit_short})")
     print(f"Branch: {commit_info.branch}")
@@ -75,7 +87,14 @@ def main() -> None:
     
     # Build
     jobs = get_parallel_jobs()
-    build_libstorage(logos_storage_dir, jobs)
+    
+    if is_android_build():
+        # Android build - use client-lite patches
+        patch_dir = Path("patches")
+        build_libstorage_android(logos_storage_dir, jobs, patch_dir)
+    else:
+        # Desktop build - full library
+        build_libstorage(logos_storage_dir, jobs)
     
     # Collect and combine artifacts
     host_triple = get_host_triple()
